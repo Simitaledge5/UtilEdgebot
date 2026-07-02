@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -105,27 +106,38 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     await update.message.reply_text(quick_reply, parse_mode="MarkdownV2")
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log errors caused by Updates."""
+    logger.error(f"Exception while handling an update: {context.error}")
+
 def main() -> None:
-    """Initialize and initialize the background worker loop."""
-    logger.info("Building application...")
+    """Initialize and run the bot application."""
+    logger.info("Initializing application setup...")
     
-    # Configure Application
+    # Initialize application
     application = Application.builder().token(TOKEN).build()
 
-    # Register Command Handlers
+    # Register Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("upper", upper_command))
     application.add_handler(CommandHandler("lower", lower_command))
     application.add_handler(CommandHandler("reverse", reverse_command))
-    
-    # Handle normal messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+    
+    # Register global error logger
+    application.add_error_handler(error_handler)
 
-    # Execute long-polling loop natively (ideal configuration for background workers)
-    logger.info("Bot is starting polling loop...")
+    logger.info("Starting polling stream...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
+    # Strict event loop control handling Python 3.11+ environments
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+    
     main()
